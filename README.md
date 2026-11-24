@@ -22,6 +22,7 @@ npm run build          # 검사 + 타입체크 + dist/ 생성
 초성은 정답에서 자동으로 만들어지므로 따로 적지 않습니다. `accept`는 초성이 같은 다른 표기만 허용됩니다.
 문제가 떨어진 날은 "준비 중" 화면이 뜨므로, 항상 2주 이상 앞서 채워 두세요.
 
-## 배포 (Cloudflare Pages 예시)
+## 배포 (Cloudflare Workers Builds)
 
-빌드 명령 `npm run build`, 출력 폴더 `dist`. 분석은 `src/lib/track.ts`에 연결합니다.
+저장소를 Workers에 연결하면 `wrangler.jsonc`가 `dist/`를 정적 자산으로 올립니다.
+빌드 명령 `npm run build`, 배포 명령 `npx wrangler deploy`(기본값). 분석은 `src/lib/track.ts`에 연결합니다.

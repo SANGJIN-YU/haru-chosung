@@ -1,0 +1,14 @@
+// Cloudflare Workers Builds: serve the Vite build output as static assets.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "haru-chosung",
+  "compatibility_date": "2026-11-01",
+  // Build here too, so deploys work even if no build command is set in the dashboard.
+  "build": { "command": "npm run build" },
+  // PR builds run `wrangler preview`, which requires this block (it may stay empty).
+  "previews": {},
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}
