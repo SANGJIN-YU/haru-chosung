@@ -569,3 +569,30 @@ button {
   width: 100%;
   margin-top: 12px;
 }
+
+.copied-note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.manual-copy {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  font-size: 13px;
+}
+
+.manual-copy textarea {
+  width: 100%;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--accent);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  resize: none;
+}

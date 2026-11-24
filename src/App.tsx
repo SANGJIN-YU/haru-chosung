@@ -18,6 +18,7 @@ import { currentStreak, recordCompletion, type Stats } from './lib/stats'
 import { loadName, loadPlay, loadStats, saveName, savePlay, saveStats } from './lib/storage'
 import { challengeUrl, parseChallenge, type Challenge } from './lib/challenge'
 import { buildPracticeRound } from './lib/practice-round'
+import { copyText, prefersNativeShare } from './lib/share'
 import { track } from './lib/track'
 
 const SEEN_HELP_KEY = 'haru-chosung:seen-help'
@@ -467,6 +468,8 @@ function ResultPanel({
   onPractice?: () => void
 }) {
   const [copied, setCopied] = useState<string | null>(null)
+  // Shown when neither sharing nor copying works, so the text can be copied by hand.
+  const [manual, setManual] = useState<string | null>(null)
   const [name, setName] = useState(loadName)
   const url = location.origin + location.pathname
   const title = `하루초성 #${number} · ${puzzle.theme}${mode === 'archive' ? ' (지난 문제)' : ''}`
@@ -481,20 +484,21 @@ function ResultPanel({
 
   const send = async (body: string, kind: 'share' | 'challenge') => {
     track(kind, { n: number })
-    if (navigator.share) {
+    setManual(null)
+    if (prefersNativeShare()) {
       try {
         await navigator.share({ text: body })
         return
-      } catch {
-        /* cancelled or unsupported: fall through to copy */
+      } catch (e) {
+        if ((e as Error).name === 'AbortError') return // the person closed the sheet
+        /* share failed: fall through to copy */
       }
     }
-    try {
-      await navigator.clipboard.writeText(body)
+    if (await copyText(body)) {
       setCopied(kind)
-      setTimeout(() => setCopied(null), 2000)
-    } catch {
-      window.prompt('아래 내용을 복사해 공유하세요', body)
+      setTimeout(() => setCopied(null), 2500)
+    } else {
+      setManual(body)
     }
   }
 
@@ -521,6 +525,13 @@ function ResultPanel({
         {copied === 'share' ? '복사했어요! 단톡방에 붙여 넣으세요' : '결과 공유하기'}
       </button>
 
+      {manual && (
+        <div className="manual-copy">
+          <label htmlFor="manual-copy">자동 복사가 막혀 있어요. 아래 내용을 길게 눌러 복사해 주세요.</label>
+          <textarea id="manual-copy" readOnly value={manual} rows={5} onFocus={(e) => e.currentTarget.select()} />
+        </div>
+      )}
+
       <div className="duel">
         <label htmlFor="duel-name">친구에게 도전장 보내기</label>
         <div className="duel-row">
@@ -538,6 +549,7 @@ function ResultPanel({
             {copied === 'challenge' ? '복사됨' : '도전장 보내기'}
           </button>
         </div>
+        {copied === 'challenge' && <p className="copied-note">도전장 링크를 복사했어요. 카톡에 붙여 넣으세요.</p>}
         <p className="muted">링크를 연 친구는 같은 문제를 풀고 내 점수와 비교해요.</p>
       </div>
 
