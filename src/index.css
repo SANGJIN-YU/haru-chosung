@@ -412,3 +412,160 @@ button {
     font-size: 19px;
   }
 }
+
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 12px;
+  border-radius: 12px;
+  background: var(--line);
+}
+
+.tabs button {
+  height: 36px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.tabs button.on {
+  background: var(--card);
+  color: var(--ink);
+}
+
+.tabs button:focus-visible,
+.archive-row:focus-visible,
+.back:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.item-theme {
+  display: inline-block;
+  margin: 0 0 8px 46px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.back {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 0 0 10px;
+}
+
+.archive-note {
+  margin: 0 0 10px;
+}
+
+.archive {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.archive-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  color: var(--ink);
+  text-align: left;
+}
+
+.archive-row .num {
+  width: 34px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.archive-row .meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.archive-row small {
+  color: var(--muted);
+}
+
+.pill {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.pill.done {
+  background: var(--star);
+  color: var(--tile-ink);
+  font-weight: 700;
+}
+
+.pill.todo {
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.challenge {
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  border-color: var(--accent);
+}
+
+.challenge .label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.challenge p {
+  margin: 4px 0 0;
+}
+
+.duel {
+  margin-top: 18px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.duel label {
+  font-weight: 700;
+}
+
+.duel-row {
+  display: flex;
+  gap: 6px;
+}
+
+.duel-row input {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.duel .muted {
+  margin: 0;
+}
+
+.ghost.wide {
+  width: 100%;
+  margin-top: 12px;
+}

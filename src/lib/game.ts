@@ -87,18 +87,26 @@ export function maxScore(puzzle: Puzzle): number {
 
 const EMOJI: Record<ItemResult, string> = { star: '⭐', hint: '💡', miss: '🌫️' }
 
+export function resultEmojis(results: (ItemResult | null)[]): string {
+  return results.map((r) => (r ? EMOJI[r] : '⬜')).join('')
+}
+
+export function heartsText(hearts: number): string {
+  return '❤️'.repeat(hearts) + '🤍'.repeat(MAX_HEARTS - hearts)
+}
+
+/** Share text that never reveals answers. `title` is the first line. */
 export function shareText(
   state: DayState,
   puzzle: Puzzle,
+  title: string,
   streak: number,
   url: string,
 ): string {
-  const row = state.results.map((r) => (r ? EMOJI[r] : '⬜')).join('')
-  const hearts = '❤️'.repeat(state.hearts) + '🤍'.repeat(MAX_HEARTS - state.hearts)
   const lines = [
-    `하루초성 #${state.puzzleNumber} · ${puzzle.theme}`,
-    `${row}  ${score(state)}/${maxScore(puzzle)}점`,
-    hearts,
+    title,
+    `${resultEmojis(state.results)}  ${score(state)}/${maxScore(puzzle)}점`,
+    heartsText(state.hearts),
   ]
   if (streak >= 2) lines.push(`🔥 ${streak}일 연속`)
   lines.push(url)

@@ -5,6 +5,8 @@ export interface PuzzleItem {
   clue: string
   /** Other spellings that count as correct. Must share the answer's 초성. */
   accept?: string[]
+  /** Set only in practice rounds, where each item comes from a different theme. */
+  theme?: string
 }
 
 export interface Puzzle {
