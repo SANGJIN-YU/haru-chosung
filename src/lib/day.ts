@@ -28,3 +28,9 @@ export function formatCountdown(ms: number): string {
   const s = total % 60
   return [h, m, s].map((n) => String(n).padStart(2, '0')).join(':')
 }
+
+/** "12월 24일" for puzzle #31. */
+export function puzzleDateLabel(puzzleNumber: number): string {
+  const d = new Date(Date.parse(`${LAUNCH_DATE}T00:00:00Z`) + (puzzleNumber - 1) * DAY_MS)
+  return `${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일`
+}
