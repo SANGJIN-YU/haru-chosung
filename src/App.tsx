@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { PUZZLES, type Puzzle } from './puzzles'
 import { toChosung } from './lib/hangul'
-import { formatCountdown, msUntilNextPuzzle, puzzleNumberAt } from './lib/day'
+import { formatCountdown, msUntilNextPuzzle, puzzleDateLabel, puzzleNumberAt } from './lib/day'
 import {
   MAX_HEARTS,
   applyGuess,
   maxScore,
   newDayState,
+  resultEmojis,
   score,
   shareText,
   takeHint,
@@ -14,7 +15,9 @@ import {
   type ItemResult,
 } from './lib/game'
 import { currentStreak, recordCompletion, type Stats } from './lib/stats'
-import { loadDay, loadStats, saveDay, saveStats } from './lib/storage'
+import { loadName, loadPlay, loadStats, saveName, savePlay, saveStats } from './lib/storage'
+import { challengeUrl, parseChallenge, type Challenge } from './lib/challenge'
+import { buildPracticeRound } from './lib/practice-round'
 import { track } from './lib/track'
 
 const SEEN_HELP_KEY = 'haru-chosung:seen-help'
@@ -28,10 +31,24 @@ function todayNumber(): number {
   return puzzleNumberAt(Date.now())
 }
 
+type View = 'today' | 'archive' | 'practice'
+type Mode = 'daily' | 'archive' | 'practice'
+
 export default function App() {
   const [number] = useState(todayNumber)
   const puzzle: Puzzle | undefined = PUZZLES[number - 1]
+  const [challenge] = useState<Challenge | null>(() =>
+    parseChallenge(location.search, Math.min(number, PUZZLES.length)),
+  )
+  const [view, setView] = useState<View>(() =>
+    challenge && challenge.puzzleNumber < number ? 'archive' : 'today',
+  )
+  const [archivePick, setArchivePick] = useState<number | null>(() =>
+    challenge && challenge.puzzleNumber < number ? challenge.puzzleNumber : null,
+  )
+  const [practiceRound, setPracticeRound] = useState(0)
   const [showHelp, setShowHelp] = useState(() => {
+    if (challenge) return false
     try {
       return !localStorage.getItem(SEEN_HELP_KEY)
     } catch {
@@ -41,6 +58,10 @@ export default function App() {
   const [showStats, setShowStats] = useState(false)
   const [stats, setStats] = useState<Stats>(loadStats)
 
+  useEffect(() => {
+    if (challenge) track('challenge_open', { n: challenge.puzzleNumber })
+  }, [challenge])
+
   const closeHelp = () => {
     setShowHelp(false)
     try {
@@ -49,6 +70,16 @@ export default function App() {
       /* ignore */
     }
   }
+
+  const go = (next: View) => {
+    setView(next)
+    if (next === 'archive') setArchivePick(null)
+    if (next === 'practice') setPracticeRound((r) => r + 1)
+    track('view', { view: next })
+    window.scrollTo(0, 0)
+  }
+
+  const archivePuzzle = archivePick ? PUZZLES[archivePick - 1] : undefined
 
   return (
     <div className="app">
@@ -65,13 +96,66 @@ export default function App() {
         </button>
       </header>
 
-      {puzzle ? (
-        <Game key={number} number={number} puzzle={puzzle} stats={stats} onStats={setStats} />
-      ) : (
-        <section className="card empty">
-          <p>오늘의 문제를 준비하고 있어요.</p>
-          <Countdown />
-        </section>
+      <nav className="tabs" aria-label="모드">
+        {(
+          [
+            ['today', '오늘의 문제'],
+            ['archive', '지난 문제'],
+            ['practice', '연습'],
+          ] as [View, string][]
+        ).map(([v, label]) => (
+          <button
+            key={v}
+            className={view === v ? 'on' : ''}
+            aria-current={view === v ? 'page' : undefined}
+            onClick={() => go(v)}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      {view === 'today' &&
+        (puzzle ? (
+          <Game
+            key={`d${number}`}
+            mode="daily"
+            number={number}
+            puzzle={puzzle}
+            stats={stats}
+            onStats={setStats}
+            challenge={challenge?.puzzleNumber === number ? challenge : null}
+            onPractice={() => go('practice')}
+          />
+        ) : (
+          <section className="card empty">
+            <p>오늘의 문제를 준비하고 있어요.</p>
+            <Countdown />
+          </section>
+        ))}
+
+      {view === 'archive' &&
+        (archivePick && archivePuzzle ? (
+          <>
+            <button className="back" onClick={() => setArchivePick(null)}>
+              ← 지난 문제 목록
+            </button>
+            <Game
+              key={`a${archivePick}`}
+              mode="archive"
+              number={archivePick}
+              puzzle={archivePuzzle}
+              stats={stats}
+              challenge={challenge?.puzzleNumber === archivePick ? challenge : null}
+              onPractice={() => go('practice')}
+            />
+          </>
+        ) : (
+          <ArchiveList today={number} stats={stats} onPick={setArchivePick} onPractice={() => go('practice')} />
+        ))}
+
+      {view === 'practice' && (
+        <Practice key={practiceRound} today={number} onNext={() => setPracticeRound((r) => r + 1)} />
       )}
 
       {showHelp && <HelpModal onClose={closeHelp} />}
@@ -82,19 +166,85 @@ export default function App() {
   )
 }
 
+function Practice({ today, onNext }: { today: number; onNext: () => void }) {
+  const [puzzle] = useState(() => buildPracticeRound(today))
+  useEffect(() => track('practice_start'), [])
+  return <Game mode="practice" number={0} puzzle={puzzle} onNext={onNext} />
+}
+
+function ArchiveList({
+  today,
+  stats,
+  onPick,
+  onPractice,
+}: {
+  today: number
+  stats: Stats
+  onPick: (n: number) => void
+  onPractice: () => void
+}) {
+  const last = Math.min(today - 1, PUZZLES.length)
+  if (last < 1) {
+    return (
+      <section className="card empty">
+        <p>아직 지난 문제가 없어요. 오늘이 첫날이에요!</p>
+        <p className="muted">내일부터 놓친 날의 문제를 여기서 풀 수 있어요.</p>
+        <button className="primary big" onClick={onPractice}>
+          연습 모드로 더 풀기
+        </button>
+      </section>
+    )
+  }
+  const rows = Array.from({ length: last }, (_, i) => last - i)
+  return (
+    <section>
+      <p className="muted archive-note">놓친 날의 문제를 풀 수 있어요. 연속 기록에는 들어가지 않아요.</p>
+      <ul className="archive">
+        {rows.map((n) => {
+          const daily = stats.history[n]
+          const play = loadPlay(n)
+          const s = daily ?? (play?.done ? score(play) : undefined)
+          return (
+            <li key={n}>
+              <button className="card archive-row" onClick={() => onPick(n)}>
+                <span className="num">#{n}</span>
+                <span className="meta">
+                  <strong>{PUZZLES[n - 1].theme}</strong>
+                  <small>{puzzleDateLabel(n)}</small>
+                </span>
+                <span className={`pill ${s === undefined ? 'todo' : 'done'}`}>
+                  {s === undefined ? (play ? '푸는 중' : '안 풂') : `${s}점`}
+                </span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
+  )
+}
+
 function Game({
+  mode,
   number,
   puzzle,
   stats,
   onStats,
+  challenge,
+  onPractice,
+  onNext,
 }: {
+  mode: Mode
   number: number
   puzzle: Puzzle
-  stats: Stats
-  onStats: (s: Stats) => void
+  stats?: Stats
+  onStats?: (s: Stats) => void
+  challenge?: Challenge | null
+  onPractice?: () => void
+  onNext?: () => void
 }) {
   const [state, setState] = useState<DayState>(
-    () => loadDay(number) ?? newDayState(number, puzzle),
+    () => (mode === 'practice' ? null : loadPlay(number)) ?? newDayState(number, puzzle),
   )
   const firstOpen = state.results.findIndex((r) => r === null)
   const [active, setActive] = useState(firstOpen === -1 ? 0 : firstOpen)
@@ -102,15 +252,18 @@ function Game({
   const [flash, setFlash] = useState<'wrong' | 'repeat' | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => saveDay(state), [state])
+  useEffect(() => {
+    if (mode !== 'practice') savePlay(state)
+  }, [state, mode])
 
   useEffect(() => {
     if (!state.done) return
+    track('complete', { mode, n: number, score: score(state) })
+    if (mode !== 'daily' || !stats || !onStats) return
     const next = recordCompletion(stats, number, score(state), score(state) === maxScore(puzzle))
     if (next !== stats) {
       saveStats(next)
       onStats(next)
-      track('complete', { n: number, score: score(state) })
     }
   }, [state.done]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -141,8 +294,11 @@ function Game({
 
   return (
     <main>
+      {challenge && <ChallengeBanner challenge={challenge} mine={state.done ? score(state) : null} />}
       <section className="theme card">
-        <span className="label">오늘의 주제</span>
+        <span className="label">
+          {mode === 'daily' ? '오늘의 주제' : mode === 'archive' ? `#${number} · ${puzzleDateLabel(number)}의 주제` : '연습 모드'}
+        </span>
         <strong>{puzzle.theme}</strong>
         <Hearts hearts={state.hearts} />
       </section>
@@ -159,6 +315,7 @@ function Game({
               }`}
               onClick={() => select(i)}
             >
+              {item.theme && <span className="item-theme">{item.theme}</span>}
               <div className="item-head">
                 <span className="step">{i + 1}고개</span>
                 <Tiles
@@ -210,7 +367,25 @@ function Game({
         })}
       </ol>
 
-      {state.done && <ResultPanel state={state} puzzle={puzzle} stats={stats} number={number} />}
+      {state.done &&
+        (mode === 'practice' ? (
+          <section className="result card">
+            <h2>연습 {score(state)}/{maxScore(puzzle)}점</h2>
+            <p className="muted">연습 기록은 저장되지 않아요. 원하는 만큼 계속 풀 수 있어요.</p>
+            <button className="primary big" onClick={onNext}>
+              다음 연습 문제
+            </button>
+          </section>
+        ) : (
+          <ResultPanel
+            mode={mode}
+            state={state}
+            puzzle={puzzle}
+            streak={mode === 'daily' && stats ? currentStreak(stats, number) : 0}
+            number={number}
+            onPractice={onPractice}
+          />
+        ))}
     </main>
   )
 }
@@ -254,43 +429,84 @@ function Hearts({ hearts }: { hearts: number }) {
   )
 }
 
+function ChallengeBanner({ challenge, mine }: { challenge: Challenge; mine: number | null }) {
+  const who = challenge.name ? `${challenge.name} 님` : '친구'
+  let verdict = '같은 문제를 풀고 점수를 비교해 보세요.'
+  if (mine !== null) {
+    verdict =
+      mine > challenge.score
+        ? `내 점수 ${mine}점, 이겼어요! 🎉`
+        : mine === challenge.score
+          ? `내 점수 ${mine}점, 비겼어요!`
+          : `내 점수 ${mine}점, 아쉽게 졌어요.`
+  }
+  return (
+    <section className="challenge card" aria-live="polite">
+      <span className="label">도전장</span>
+      <p>
+        <b>{who}</b>의 기록 {resultEmojis(challenge.results)} <b>{challenge.score}점</b>
+      </p>
+      <p className="muted">{verdict}</p>
+    </section>
+  )
+}
+
 function ResultPanel({
+  mode,
   state,
   puzzle,
-  stats,
+  streak,
   number,
+  onPractice,
 }: {
+  mode: 'daily' | 'archive'
   state: DayState
   puzzle: Puzzle
-  stats: Stats
+  streak: number
   number: number
+  onPractice?: () => void
 }) {
-  const [copied, setCopied] = useState(false)
-  const streak = currentStreak(stats, number)
+  const [copied, setCopied] = useState<string | null>(null)
+  const [name, setName] = useState(loadName)
   const url = location.origin + location.pathname
-  const text = useMemo(() => shareText(state, puzzle, streak, url), [state, puzzle, streak, url])
+  const title = `하루초성 #${number} · ${puzzle.theme}${mode === 'archive' ? ' (지난 문제)' : ''}`
   const s = score(state)
   const max = maxScore(puzzle)
+  const text = useMemo(
+    () => shareText(state, puzzle, title, streak, url),
+    [state, puzzle, title, streak, url],
+  )
   const headline =
     s === max ? '완벽해요!' : s >= max * 0.7 ? '잘했어요!' : s > 0 ? '아깝네요!' : '내일 다시 도전!'
 
-  const share = async () => {
-    track('share', { n: number })
+  const send = async (body: string, kind: 'share' | 'challenge') => {
+    track(kind, { n: number })
     if (navigator.share) {
       try {
-        await navigator.share({ text })
+        await navigator.share({ text: body })
         return
       } catch {
         /* cancelled or unsupported: fall through to copy */
       }
     }
     try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      await navigator.clipboard.writeText(body)
+      setCopied(kind)
+      setTimeout(() => setCopied(null), 2000)
     } catch {
-      window.prompt('아래 내용을 복사해 공유하세요', text)
+      window.prompt('아래 내용을 복사해 공유하세요', body)
     }
+  }
+
+  const challengeText = () => {
+    const link = challengeUrl(url, {
+      puzzleNumber: number,
+      score: s,
+      results: state.results.map((r) => r ?? 'miss'),
+      name: name.trim(),
+    })
+    const who = name.trim() ? `${name.trim()}의 기록` : '내 기록'
+    return `하루초성 #${number} ${who}은 ${s}점! 같은 문제로 이겨 볼래?\n${resultEmojis(state.results)}\n${link}`
   }
 
   return (
@@ -301,13 +517,39 @@ function ResultPanel({
         <small>/{max}점</small>
       </p>
       <pre className="share-preview">{text}</pre>
-      <button className="primary big" onClick={share}>
-        {copied ? '복사했어요! 단톡방에 붙여 넣으세요' : '결과 공유하기'}
+      <button className="primary big" onClick={() => send(text, 'share')}>
+        {copied === 'share' ? '복사했어요! 단톡방에 붙여 넣으세요' : '결과 공유하기'}
       </button>
-      <div className="next">
-        <span>다음 문제까지</span>
-        <Countdown />
+
+      <div className="duel">
+        <label htmlFor="duel-name">친구에게 도전장 보내기</label>
+        <div className="duel-row">
+          <input
+            id="duel-name"
+            value={name}
+            maxLength={12}
+            placeholder="내 이름 (선택)"
+            onChange={(e) => {
+              setName(e.target.value)
+              saveName(e.target.value)
+            }}
+          />
+          <button className="ghost" onClick={() => send(challengeText(), 'challenge')}>
+            {copied === 'challenge' ? '복사됨' : '도전장 보내기'}
+          </button>
+        </div>
+        <p className="muted">링크를 연 친구는 같은 문제를 풀고 내 점수와 비교해요.</p>
       </div>
+
+      <button className="ghost wide" onClick={onPractice}>
+        연습 모드로 더 풀기
+      </button>
+      {mode === 'daily' && (
+        <div className="next">
+          <span>다음 문제까지</span>
+          <Countdown />
+        </div>
+      )}
     </section>
   )
 }
@@ -357,6 +599,7 @@ function HelpModal({ onClose }: { onClose: () => void }) {
         <li>틀리면 하트가 하나 줄어요. 하트 {MAX_HEARTS}개를 다 쓰면 오늘 판은 끝!</li>
         <li>막히면 힌트를 볼 수 있어요. 힌트 없이 맞히면 ⭐ 2점, 힌트를 보면 💡 1점.</li>
         <li>매일 이어서 풀면 🔥 연속 기록이 쌓여요. 결과는 정답을 가리고 공유돼요.</li>
+        <li>더 풀고 싶다면 <b>지난 문제</b>와 <b>연습</b> 탭에서 계속할 수 있어요.</li>
       </ul>
       <button className="primary big" onClick={onClose}>
         시작하기

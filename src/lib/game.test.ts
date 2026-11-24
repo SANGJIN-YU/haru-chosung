@@ -59,7 +59,7 @@ describe('game', () => {
   it('share text hides answers', () => {
     let s = newDayState(7, P)
     for (const [i, it] of P.items.entries()) s = applyGuess(s, P, i, it.answer).state
-    const text = shareText(s, P, 3, 'https://example.com/')
+    const text = shareText(s, P, '하루초성 #7 · 테스트', 3, 'https://example.com/')
     expect(s.done).toBe(true)
     expect(text).toContain('#7')
     expect(text).toContain('🔥 3일 연속')

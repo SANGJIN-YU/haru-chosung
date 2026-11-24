@@ -1,13 +1,13 @@
 // Validates puzzle data. Run: npm run check:puzzles
-import { PUZZLES } from '../src/puzzles.ts'
+import { PUZZLES, type Puzzle } from '../src/puzzles.ts'
+import { PRACTICE_SETS } from '../src/practice.ts'
 import { isHangulSyllable, toChosung } from '../src/lib/hangul.ts'
 
 const errors: string[] = []
 const warnings: string[] = []
 const seen = new Map<string, number>()
 
-PUZZLES.forEach((p, d) => {
-  const tag = `#${d + 1} ${p.theme}`
+function check(p: Puzzle, tag: string, d: number) {
   if (!p.theme.trim()) errors.push(`${tag}: 주제가 비어 있음`)
   if (p.items.length !== 5) errors.push(`${tag}: 문제 수 ${p.items.length}개 (5개여야 함)`)
   const chosungs = new Set<string>()
@@ -27,9 +27,13 @@ PUZZLES.forEach((p, d) => {
     if (prev !== undefined) warnings.push(`'${it.answer}' 가 #${prev + 1}, #${d + 1} 에 중복 출제`)
     seen.set(it.answer, d)
   })
-})
+}
+
+PUZZLES.forEach((p, d) => check(p, `#${d + 1} ${p.theme}`, d))
+// Practice sets are numbered after the daily ones so an overlap shows as a duplicate.
+PRACTICE_SETS.forEach((p, i) => check(p, `연습${i + 1} ${p.theme}`, PUZZLES.length + i))
 
 for (const w of warnings) console.warn('경고:', w)
 for (const e of errors) console.error('오류:', e)
-console.log(`${PUZZLES.length}일치 문제 검사: 오류 ${errors.length}개, 경고 ${warnings.length}개`)
-if (errors.length) process.exit(1)
+console.log(`${PUZZLES.length}일치 + 연습 ${PRACTICE_SETS.length}세트 검사: 오류 ${errors.length}개, 경고 ${warnings.length}개`)
+if (errors.length || warnings.length) process.exit(1)
