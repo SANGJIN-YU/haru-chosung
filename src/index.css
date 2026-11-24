@@ -16,7 +16,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #1c1915;
     --card: #26221c;
     --ink: #f1e9da;
@@ -28,6 +28,19 @@
     --shadow: none;
     color-scheme: dark;
   }
+}
+
+:root[data-theme="dark"] {
+  --bg: #1c1915;
+  --card: #26221c;
+  --ink: #f1e9da;
+  --muted: #a89c88;
+  --line: #3a342b;
+  --accent: #e0745c;
+  --tile: #8fb3c4;
+  --tile-ink: #1c1915;
+  --shadow: none;
+  color-scheme: dark;
 }
 
 * {
